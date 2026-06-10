@@ -195,6 +195,66 @@ def color_for(value, vmin, vmax):
 
 
 # --------------------------------------------------------------------------- #
+# Overlay de chargement — petite rame qui avance de gauche à droite
+# --------------------------------------------------------------------------- #
+def loading_overlay_html() -> str:
+    return """
+    <div class="nf-overlay">
+        <div class="nf-loader">
+            <div class="nf-rail"></div>
+            <svg class="nf-train" viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg">
+                <!-- corps de la rame -->
+                <rect x="4" y="6" width="112" height="30" rx="9" fill="#006A4E"/>
+                <rect x="4" y="6" width="112" height="9" rx="9" fill="#00543E"/>
+                <!-- bandeau clair -->
+                <rect x="4" y="14" width="112" height="5" fill="#ffffff" opacity="0.85"/>
+                <!-- pare-brise -->
+                <rect x="98" y="10" width="14" height="11" rx="3" fill="#BFE8DA"/>
+                <!-- fenêtres -->
+                <rect x="14" y="21" width="13" height="9" rx="2" fill="#BFE8DA"/>
+                <rect x="33" y="21" width="13" height="9" rx="2" fill="#BFE8DA"/>
+                <rect x="52" y="21" width="13" height="9" rx="2" fill="#BFE8DA"/>
+                <rect x="71" y="21" width="13" height="9" rx="2" fill="#BFE8DA"/>
+                <!-- roues -->
+                <circle cx="28" cy="40" r="6" fill="#15151F"/>
+                <circle cx="28" cy="40" r="2.4" fill="#8A8A96"/>
+                <circle cx="92" cy="40" r="6" fill="#15151F"/>
+                <circle cx="92" cy="40" r="2.4" fill="#8A8A96"/>
+                <!-- phare -->
+                <circle cx="113" cy="27" r="2.4" fill="#FFCD00"/>
+            </svg>
+        </div>
+        <div class="nf-loading-txt">Prévision en cours…</div>
+    </div>
+    <style>
+        .nf-overlay {
+            position:fixed; inset:0; z-index:9999;
+            background:rgba(250,250,248,.85); backdrop-filter:blur(3px);
+            display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.6rem;
+        }
+        .nf-loader { position:relative; width:340px; height:80px; margin:0 auto; }
+        .nf-rail {
+            position:absolute; bottom:8px; left:0; width:100%; height:3px;
+            background:repeating-linear-gradient(90deg,#C9C9C2 0 14px,transparent 14px 26px);
+            border-radius:2px;
+        }
+        .nf-train {
+            position:absolute; bottom:10px; left:0; width:120px; height:48px;
+            animation:nf-ride 2.6s ease-in-out infinite alternate;
+        }
+        @keyframes nf-ride {
+            from { transform:translateX(0); }
+            to   { transform:translateX(220px); }
+        }
+        .nf-loading-txt {
+            font-family:'Archivo',sans-serif; font-weight:700; font-size:1rem;
+            letter-spacing:.04em; color:#006A4E; text-transform:uppercase;
+        }
+    </style>
+    """
+
+
+# --------------------------------------------------------------------------- #
 # État
 # --------------------------------------------------------------------------- #
 inject_style()
@@ -349,4 +409,6 @@ if clicked:
         st.session_state.selected_id = nearest
         st.session_state.result = None
         st.session_state.result_meta = None
+        # overlay affiché pendant le rechargement de la carte (moment le plus lent)
+        st.markdown(loading_overlay_html(), unsafe_allow_html=True)
         st.rerun()
