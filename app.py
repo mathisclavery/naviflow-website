@@ -3,10 +3,12 @@
 Flux : clic sur une station (carte) → sélection → choix date + horizon →
 bouton « Lancer la prédiction » → l'API renvoie J+1..J+7.
 
-La carte trace les lignes de métro M1–M14 à leurs couleurs officielles RATP
-(fond), puis pose les stations dimensionnées par affluence moyenne (dessus).
-
-Style : signalétique RATP (vert réseau, cartouche de quai) + dashboard épuré.
+Direction artistique : signalétique RATP poussée à fond —
+  · carrelage métro biseauté en fond de page (texture CSS)
+  · plaque émaillée verte pour l'identité et le nom de station
+  · afficheur SIEL (matrice de points ambre) pour le chiffre de prédiction
+  · pastilles de lignes M1–M14 aux couleurs officielles
+  · ticket t+ en état vide
 """
 
 import datetime as dt
@@ -24,13 +26,12 @@ from streamlit_folium import st_folium
 API_URL = st.secrets["API_URL"]
 
 HORIZON_MAX = 7
-DATE_MIN = dt.date(2025, 6, 15)     # ~200 derniers jours de 2025 (jeu de test)
+DATE_MIN = dt.date(2025, 6, 15)
 DATE_MAX = dt.date(2025, 12, 31)
 DATE_DEFAULT = dt.date(2025, 9, 1)
 
 GEOJSON_PATH = "reseau_metro.geojson"
 
-# Couleurs officielles RATP par ligne (le GeoJSON umap donne des approximations CSS)
 LIGNE_COLORS = {
     "Métro 1": "#FFCD00", "Métro 2": "#003CA6", "Métro 3": "#837902",
     "Métro 3bis": "#6EC4E8", "Métro 4": "#CF009E", "Métro 5": "#FF7E2E",
@@ -51,87 +52,216 @@ def inject_style():
     st.markdown(
         """
         <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=DotGothic16&display=swap" rel="stylesheet">
         <style>
             :root {
-                --paper:#FAFAF8; --ink:#15151F; --ratp:#006A4E;
-                --muted:#8A8A96; --hairline:#E6E6E0;
+                --paper:#F2F0EA;
+                --ink:#14141E;
+                --ratp:#006A4E;
+                --ratp-deep:#00543E;
+                --amber:#FFB000;
+                --siel-bg:#101524;
+                --muted:#84847E;
+                --hairline:#DEDBD0;
                 --low:#3B6FB0; --high:#E2231A;
             }
-            .stApp { background: var(--paper); }
-            #MainMenu, header, footer { visibility: hidden; }
-            html, body, [class*="css"] { font-family:'Inter Tight',sans-serif; color:var(--ink); }
-            h1,h2,h3 { font-family:'Archivo',sans-serif; letter-spacing:-0.02em; }
 
-            .block-container { padding-top:2.2rem; }
+            .stApp {
+                background-color: var(--paper);
+                background-image:
+                    linear-gradient(rgba(20,20,30,.065) 1px, rgba(255,255,255,.55) 1px, transparent 2.5px),
+                    linear-gradient(90deg, rgba(20,20,30,.045) 1px, rgba(255,255,255,.4) 1px, transparent 2.5px);
+                background-size: 100% 36px, 96px 100%;
+            }
+            #MainMenu, header, footer { visibility:hidden; }
+
+            html, body, [class*="css"] {
+                font-family:'Hanken Grotesk', sans-serif; color:var(--ink);
+            }
+            h1,h2,h3 { font-family:'Bricolage Grotesque', sans-serif; letter-spacing:-0.02em; }
+            .block-container { padding-top:2rem; max-width:1280px; }
+
+            ::-webkit-scrollbar { width:9px; height:9px; }
+            ::-webkit-scrollbar-thumb { background:var(--ratp); border-radius:99px; }
+            ::-webkit-scrollbar-track { background:transparent; }
+
+            @keyframes nfUp { from {opacity:0; transform:translateY(12px);} to {opacity:1; transform:none;} }
+            @keyframes sielIn { 0%{opacity:0;} 35%{opacity:.7;} 45%{opacity:.15;} 60%{opacity:.9;} 70%{opacity:.4;} 100%{opacity:1;} }
+            @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:.15;} }
 
             .nf-header {
-                display:flex; align-items:baseline; gap:.9rem;
-                border-bottom:2px solid var(--ink); padding-bottom:.7rem; margin-bottom:1.3rem;
+                display:flex; align-items:center; gap:1rem;
+                margin-bottom:1.4rem; animation:nfUp .5s ease both;
             }
-            .nf-logo { font-family:'Archivo',sans-serif; font-weight:900; font-size:2rem; color:var(--ratp); line-height:1; letter-spacing:-0.03em; }
-            .nf-sub { color:var(--muted); font-size:.95rem; font-weight:500; }
+            .nf-roundel {
+                width:52px; height:52px; border-radius:50%;
+                background:#FFCD00; color:var(--ink);
+                display:flex; align-items:center; justify-content:center;
+                font-family:'Bricolage Grotesque'; font-weight:800; font-size:1.7rem;
+                border:3px solid var(--ink);
+                box-shadow:3px 3px 0 rgba(20,20,30,.18);
+                flex:0 0 auto;
+            }
+            .nf-plaque {
+                background:var(--ratp); color:#fff;
+                border-radius:8px; padding:.55rem 1.4rem .6rem;
+                box-shadow: inset 0 0 0 2px rgba(255,255,255,.9),
+                            inset 0 0 0 4px var(--ratp),
+                            0 8px 24px rgba(0,106,78,.28);
+            }
+            .nf-plaque .logo {
+                font-family:'Bricolage Grotesque'; font-weight:800;
+                font-size:1.9rem; line-height:1; letter-spacing:.04em;
+            }
+            .nf-headsub { color:var(--muted); font-size:.92rem; font-weight:500; }
+            .nf-headsub b { color:var(--ink); font-weight:700; }
 
-            section[data-testid="stSidebar"] { background:#fff; border-right:1px solid var(--hairline); }
-            /* sidebar figée + contenu centré verticalement, sans scroll */
-            section[data-testid="stSidebar"] > div {
-                position:sticky; top:0; height:100vh; overflow:hidden;
+            .nf-planbar {
+                display:flex; align-items:center; justify-content:space-between;
+                gap:1rem; flex-wrap:wrap; margin:.2rem 0 .75rem;
+                animation:nfUp .5s .08s ease both;
             }
-            section[data-testid="stSidebar"] .block-container {
-                display:flex; flex-direction:column; justify-content:flex-start;
-                height:100vh; padding-top:1rem; padding-bottom:2.5rem;
-            }
-            /* premier eyebrow (STATION) sans grande marge en haut */
-            section[data-testid="stSidebar"] .nf-eyebrow:first-of-type { margin-top:0; }
-
             .nf-eyebrow {
-                font-family:'Archivo',sans-serif; font-weight:700; font-size:.72rem;
-                letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:1rem 0 .35rem;
+                font-family:'Bricolage Grotesque'; font-weight:700; font-size:.74rem;
+                letter-spacing:.16em; text-transform:uppercase; color:var(--ratp);
+                display:flex; align-items:center; gap:.45rem;
+            }
+            .nf-eyebrow::before { content:""; width:9px; height:9px; background:var(--ratp); display:inline-block; }
+            .nf-bullets { display:flex; gap:5px; flex-wrap:wrap; align-items:center; }
+            .nf-bullet {
+                width:23px; height:23px; border-radius:50%;
+                display:flex; align-items:center; justify-content:center;
+                font-family:'Bricolage Grotesque'; font-weight:800; font-size:.66rem;
+                box-shadow: inset 0 -2px 0 rgba(0,0,0,.14);
+            }
+            .nf-gradlegend { display:flex; align-items:center; gap:.5rem; font-size:.8rem; color:var(--muted); }
+            .nf-gradlegend .ramp {
+                width:90px; height:9px; border-radius:99px;
+                background:linear-gradient(90deg, var(--low), var(--high));
+                border:1px solid rgba(20,20,30,.25);
+            }
+
+            iframe[title="streamlit_folium.st_folium"] {
+                border:2.5px solid var(--ink) !important; border-radius:14px;
+                box-shadow: 9px 9px 0 rgba(0,106,78,.16);
+                animation:nfUp .55s .14s ease both;
+            }
+
+            section[data-testid="stSidebar"] {
+                background:#FFFFFF; border-right:2px solid var(--ink);
+            }
+            section[data-testid="stSidebar"] > div { padding-top:.6rem; }
+            section[data-testid="stSidebar"] .nf-eyebrow { margin:1.05rem 0 .4rem; }
+            section[data-testid="stSidebar"] .block-container { animation:nfUp .5s .05s ease both; }
+
+            /* widgets — texte en noir */
+            div[data-baseweb="select"] > div {
+                background:#fff; border:1.5px solid var(--ink); border-radius:10px;
+                font-family:'Hanken Grotesk'; font-weight:500;
+            }
+            div[data-baseweb="select"] input,
+            div[data-baseweb="select"] [data-testid="stSelectboxValue"],
+            div[data-baseweb="select"] span,
+            div[data-baseweb="select"] div {
+                color: var(--ink) !important;
+            }
+            div[data-testid="stDateInput"] div[data-baseweb="input"] {
+                background:#fff; border:1.5px solid var(--ink); border-radius:10px;
+            }
+            div[data-testid="stDateInput"] input {
+                font-family:'Hanken Grotesk'; font-weight:500;
+                color: var(--ink) !important;
             }
 
             div.stButton > button {
                 width:100%; background:var(--ink); color:#fff; border:none;
-                border-radius:10px; padding:.75rem 1rem; font-family:'Archivo',sans-serif;
-                font-weight:700; letter-spacing:.02em; font-size:.95rem;
-                transition:transform .12s, box-shadow .12s, background .12s;
+                border-radius:10px; padding:.8rem 1rem;
+                font-family:'Bricolage Grotesque'; font-weight:700;
+                letter-spacing:.05em; font-size:.95rem; text-transform:uppercase;
+                transition:transform .14s, box-shadow .14s, background .14s;
             }
-            div.stButton > button:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(21,21,31,.22); background:#000; color:#fff; }
-            div.stButton > button:disabled { background:var(--hairline); color:var(--muted); transform:none; box-shadow:none; }
+            div.stButton > button:hover:enabled {
+                background:var(--ratp); color:#fff;
+                transform:translateY(-2px);
+                box-shadow:0 8px 22px rgba(0,106,78,.35);
+            }
+            div.stButton > button:disabled { background:var(--hairline); color:var(--muted); }
 
-            /* cartouche de quai — signature, fond vert RATP façon plaque émaillée */
-            .nf-cartouche {
-                background:var(--ratp); color:#fff; border-radius:16px;
-                padding:1.3rem 1.5rem; margin-top:.9rem;
-                box-shadow:0 10px 32px rgba(0,106,78,.24);
+            .nf-ticket {
+                background:#fff; border:1.5px solid var(--ink); border-radius:10px;
+                padding:.85rem 1rem 1.5rem; margin-top:1rem;
                 position:relative; overflow:hidden;
+                box-shadow:4px 4px 0 rgba(20,20,30,.08);
+                font-size:.86rem; color:var(--muted); line-height:1.45;
             }
-            .nf-cartouche::before {
-                content:""; position:absolute; top:0; left:0; width:5px; height:100%;
-                background:rgba(255,255,255,.55);
+            .nf-ticket .tplus {
+                font-family:'Bricolage Grotesque'; font-weight:800;
+                color:#3F2A8F; font-size:1.05rem; margin-bottom:.2rem;
             }
-            .nf-cartouche .name { font-family:'Archivo',sans-serif; font-weight:700; font-size:1.25rem; line-height:1.15; padding-left:.4rem; word-break:break-word; }
-            .nf-cartouche .meta { opacity:.8; font-size:.82rem; margin-top:.25rem; padding-left:.4rem; }
-            .nf-bignum { font-family:'Archivo',sans-serif; font-weight:900; line-height:1; margin-top:.9rem; padding-left:.4rem; font-variant-numeric:tabular-nums; letter-spacing:-0.02em; white-space:nowrap; }
-            .nf-bignum .unit { font-size:.9rem; font-weight:600; opacity:.7; letter-spacing:0; }
-            .nf-horizon-tag { display:inline-block; background:rgba(255,255,255,.18); border-radius:999px; padding:.22rem .8rem; margin:.8rem 0 0 .4rem; font-weight:700; font-size:.76rem; letter-spacing:.02em; font-family:'Archivo',sans-serif; }
-
-            .nf-selected { font-family:'Archivo',sans-serif; font-weight:700; font-size:1.1rem; margin-top:.2rem; color:var(--ink); }
-
-            .nf-empty, .nf-warn {
-                border:1px dashed var(--hairline); border-radius:14px;
-                padding:1rem 1.2rem; color:var(--muted); font-size:.9rem; margin-top:.6rem;
+            .nf-ticket::after {
+                content:""; position:absolute; left:0; right:0; bottom:0; height:11px;
+                background:repeating-linear-gradient(90deg,#433426 0 16px,#5C4936 16px 32px);
             }
-            .nf-warn { border-color:var(--high); color:var(--high); background:rgba(226,35,26,.04); }
 
-            .nf-bars { display:flex; gap:5px; align-items:flex-end; height:60px; margin-top:1.1rem; }
+            .nf-cartouche {
+                background:var(--ratp); color:#fff; border-radius:12px;
+                padding:1.05rem 1.1rem 1.15rem; margin-top:1rem;
+                box-shadow: inset 0 0 0 2px rgba(255,255,255,.92),
+                            inset 0 0 0 5px var(--ratp),
+                            0 12px 30px rgba(0,84,62,.32);
+                animation:nfUp .45s ease both;
+            }
+            .nf-cartouche .name {
+                font-family:'Bricolage Grotesque'; font-weight:800;
+                font-size:1.22rem; line-height:1.12; text-transform:uppercase;
+                letter-spacing:.015em; word-break:break-word;
+            }
+            .nf-cartouche .meta { opacity:.82; font-size:.8rem; margin-top:.3rem; font-weight:500; }
+
+            .nf-siel {
+                background:var(--siel-bg); border-radius:9px;
+                margin-top:.85rem; padding:.7rem .9rem .8rem;
+                background-image:radial-gradient(rgba(255,176,0,.10) 1px, transparent 1.3px);
+                background-size:7px 7px;
+                box-shadow: inset 0 2px 10px rgba(0,0,0,.55);
+            }
+            .nf-siel .lbl {
+                font-family:'Bricolage Grotesque'; font-weight:700; font-size:.62rem;
+                letter-spacing:.22em; color:rgba(255,176,0,.65); text-transform:uppercase;
+            }
+            .nf-siel .num {
+                font-family:'DotGothic16', monospace;
+                color:var(--amber); line-height:1.05; margin-top:.15rem;
+                text-shadow:0 0 12px rgba(255,176,0,.5), 0 0 3px rgba(255,176,0,.8);
+                font-variant-numeric:tabular-nums; white-space:nowrap;
+                animation:sielIn .8s steps(9) both;
+            }
+            .nf-siel .unit { font-size:.85rem; color:rgba(255,176,0,.7); margin-left:.3rem; }
+            .nf-siel .dotblink {
+                display:inline-block; width:7px; height:7px; border-radius:50%;
+                background:var(--amber); margin-left:.5rem; vertical-align:middle;
+                animation:blink 1.2s steps(1) infinite;
+            }
+
+            .nf-horizon-tag {
+                display:inline-block; background:rgba(255,255,255,.16);
+                border:1px solid rgba(255,255,255,.4);
+                border-radius:999px; padding:.22rem .85rem; margin-top:.8rem;
+                font-family:'Bricolage Grotesque'; font-weight:700; font-size:.74rem; letter-spacing:.05em;
+            }
+
+            .nf-bars { display:flex; gap:5px; align-items:flex-end; height:58px; margin-top:1rem; }
             .nf-bar { flex:1; border-radius:3px 3px 0 0; background:var(--hairline); transition:height .25s, background .25s; }
-            .nf-bar.active { background:var(--ratp); }
-            .nf-bars-lbl { display:flex; gap:5px; margin-top:.3rem; margin-bottom:1.5rem; }
-            .nf-bars-lbl span { flex:1; text-align:center; font-size:.62rem; color:var(--muted); font-weight:500; }
-            .nf-bars-lbl span.active { color:var(--ratp); font-weight:700; }
+            .nf-bar.active { background:var(--amber); box-shadow:0 0 10px rgba(255,176,0,.45); }
+            .nf-bars-lbl { display:flex; gap:5px; margin-top:.3rem; margin-bottom:1.2rem; }
+            .nf-bars-lbl span { flex:1; text-align:center; font-size:.62rem; color:var(--muted); font-weight:600; }
+            .nf-bars-lbl span.active { color:var(--ratp); font-weight:800; }
 
-            .nf-legend { display:flex; gap:1.3rem; align-items:center; font-size:.82rem; color:var(--muted); margin:.1rem 0 .7rem; flex-wrap:wrap; }
-            .nf-legend .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:.35rem; vertical-align:middle; }
+            .nf-warn {
+                border:1.5px solid var(--high); border-radius:10px;
+                padding:.9rem 1.1rem; color:var(--high); font-size:.88rem;
+                background:rgba(226,35,26,.05); margin-top:1rem; font-weight:500;
+            }
         </style>
         """,
         unsafe_allow_html=True,
@@ -149,14 +279,15 @@ def load_coords():
 
 @st.cache_data
 def load_metro_lines():
-    """Renvoie la liste des tracés métro : [(coords_latlon, couleur_officielle)]."""
-    with open(GEOJSON_PATH, encoding="utf-8") as f:
-        gj = json.load(f)
-
+    try:
+        with open(GEOJSON_PATH, encoding="utf-8") as f:
+            gj = json.load(f)
+    except FileNotFoundError:
+        return []
     segments = []
     for feat in gj["features"]:
         name = feat["properties"].get("name", "")
-        if name not in LIGNE_COLORS:           # ne garde que M1–M14
+        if name not in LIGNE_COLORS:
             continue
         color = LIGNE_COLORS[name]
         geom = feat["geometry"]
@@ -167,13 +298,12 @@ def load_metro_lines():
         else:
             continue
         for line in polylines:
-            latlon = [[pt[1], pt[0]] for pt in line]   # geojson = [lon, lat]
+            latlon = [[pt[1], pt[0]] for pt in line]
             segments.append((latlon, color))
     return segments
 
 
 def fetch_prediction(station_id: int, prediction_date: str):
-    """Renvoie (dict {1:.., ..7:..}, None) ou (None, message d'erreur)."""
     try:
         r = requests.get(
             f"{API_URL}/predict",
@@ -194,64 +324,20 @@ def color_for(value, vmin, vmax):
     return "#%02X%02X%02X" % tuple(round(low[i] + t * (high[i] - low[i])) for i in range(3))
 
 
-# --------------------------------------------------------------------------- #
-# Overlay de chargement — petite rame qui avance de gauche à droite
-# --------------------------------------------------------------------------- #
-def loading_overlay_html() -> str:
-    return """
-    <div class="nf-overlay">
-        <div class="nf-loader">
-            <div class="nf-rail"></div>
-            <svg class="nf-train" viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg">
-                <!-- corps de la rame -->
-                <rect x="4" y="6" width="112" height="30" rx="9" fill="#006A4E"/>
-                <rect x="4" y="6" width="112" height="9" rx="9" fill="#00543E"/>
-                <!-- bandeau clair -->
-                <rect x="4" y="14" width="112" height="5" fill="#ffffff" opacity="0.85"/>
-                <!-- pare-brise -->
-                <rect x="98" y="10" width="14" height="11" rx="3" fill="#BFE8DA"/>
-                <!-- fenêtres -->
-                <rect x="14" y="21" width="13" height="9" rx="2" fill="#BFE8DA"/>
-                <rect x="33" y="21" width="13" height="9" rx="2" fill="#BFE8DA"/>
-                <rect x="52" y="21" width="13" height="9" rx="2" fill="#BFE8DA"/>
-                <rect x="71" y="21" width="13" height="9" rx="2" fill="#BFE8DA"/>
-                <!-- roues -->
-                <circle cx="28" cy="40" r="6" fill="#15151F"/>
-                <circle cx="28" cy="40" r="2.4" fill="#8A8A96"/>
-                <circle cx="92" cy="40" r="6" fill="#15151F"/>
-                <circle cx="92" cy="40" r="2.4" fill="#8A8A96"/>
-                <!-- phare -->
-                <circle cx="113" cy="27" r="2.4" fill="#FFCD00"/>
-            </svg>
-        </div>
-        <div class="nf-loading-txt">Prévision en cours…</div>
-    </div>
-    <style>
-        .nf-overlay {
-            position:fixed; inset:0; z-index:9999;
-            background:rgba(250,250,248,.85); backdrop-filter:blur(3px);
-            display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.6rem;
-        }
-        .nf-loader { position:relative; width:340px; height:80px; margin:0 auto; }
-        .nf-rail {
-            position:absolute; bottom:8px; left:0; width:100%; height:3px;
-            background:repeating-linear-gradient(90deg,#C9C9C2 0 14px,transparent 14px 26px);
-            border-radius:2px;
-        }
-        .nf-train {
-            position:absolute; bottom:10px; left:0; width:120px; height:48px;
-            animation:nf-ride 2.6s ease-in-out infinite alternate;
-        }
-        @keyframes nf-ride {
-            from { transform:translateX(0); }
-            to   { transform:translateX(220px); }
-        }
-        .nf-loading-txt {
-            font-family:'Archivo',sans-serif; font-weight:700; font-size:1rem;
-            letter-spacing:.04em; color:#006A4E; text-transform:uppercase;
-        }
-    </style>
-    """
+def bullet_fg(hex_color):
+    r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
+    return "#14141E" if (.299 * r + .587 * g + .114 * b) > 150 else "#FFFFFF"
+
+
+def bullets_html():
+    out = []
+    for name, color in LIGNE_COLORS.items():
+        label = name.replace("Métro ", "").replace("bis", "b")
+        out.append(
+            f'<span class="nf-bullet" title="{name}" '
+            f'style="background:{color};color:{bullet_fg(color)}">{label}</span>'
+        )
+    return "".join(out)
 
 
 # --------------------------------------------------------------------------- #
@@ -269,22 +355,27 @@ st.session_state.setdefault("result_meta", None)
 # En-tête
 # --------------------------------------------------------------------------- #
 st.markdown(
-    '<div class="nf-header"><span class="nf-logo">NAVIFLOW</span>'
-    '<span class="nf-sub">Prévision de fréquentation · réseau métro francilien</span></div>',
+    """
+    <div class="nf-header">
+        <div class="nf-roundel">M</div>
+        <div>
+            <div class="nf-plaque"><span class="logo">NAVIFLOW</span></div>
+        </div>
+        <div class="nf-headsub">Prévision de fréquentation<br><b>Réseau Île-de-France Mobilités</b></div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
 # --------------------------------------------------------------------------- #
-# Sidebar — contrôles
+# Sidebar
 # --------------------------------------------------------------------------- #
 with st.sidebar:
     st.markdown('<div class="nf-eyebrow">Station</div>', unsafe_allow_html=True)
 
-    # liste triée des libellés ; le selectbox offre l'autocomplétion native
     labels = sorted(stations["LIBELLE_ARRET"].unique())
     options = ["— Choisir ou cliquer sur la carte —"] + labels
 
-    # index courant déduit de la station sélectionnée (clic carte OU choix précédent)
     sel = st.session_state.selected_id
     if sel is not None:
         cur_name = stations.loc[stations["ID_LIEU"] == sel, "LIBELLE_ARRET"].iloc[0]
@@ -295,7 +386,6 @@ with st.sidebar:
     chosen = st.selectbox("Station", options, index=cur_index,
                           label_visibility="collapsed")
 
-    # si l'utilisateur a choisi un libellé dans la liste, on met à jour la sélection
     if chosen != "— Choisir ou cliquer sur la carte —":
         chosen_id = stations.loc[stations["LIBELLE_ARRET"] == chosen, "ID_LIEU"].iloc[0]
         if chosen_id != st.session_state.selected_id:
@@ -306,13 +396,13 @@ with st.sidebar:
 
     st.markdown('<div class="nf-eyebrow">Date de référence</div>', unsafe_allow_html=True)
     pred_date = st.date_input("Date", value=DATE_DEFAULT, min_value=DATE_MIN,
-                              max_value=DATE_MAX, label_visibility="collapsed")
+                              max_value=DATE_MAX, label_visibility="collapsed", format="DD/MM/YYYY")
 
     st.markdown('<div class="nf-eyebrow">Horizon de prévision</div>', unsafe_allow_html=True)
     horizon = st.slider("Horizon", 1, HORIZON_MAX, 1, format="J+%d", label_visibility="collapsed")
 
-    st.markdown('<div class="nf-eyebrow">&nbsp;</div>', unsafe_allow_html=True)
-    sel = st.session_state.selected_id   # valeur à jour (clic carte ou selectbox)
+    st.markdown("<div style='height:.7rem'></div>", unsafe_allow_html=True)
+    sel = st.session_state.selected_id
     launch = st.button("Lancer la prédiction", disabled=(sel is None))
 
     if launch and sel is not None:
@@ -326,23 +416,24 @@ with st.sidebar:
 
     res = st.session_state.result
     meta = st.session_state.result_meta
+
     if res is not None and isinstance(meta, tuple):
         rid, rdate = meta
         name = stations.loc[stations["ID_LIEU"] == rid, "LIBELLE_ARRET"].iloc[0]
         value = res[horizon]
-        # date cible = date de référence + horizon (se rafraîchit avec le slider)
-        target_date = rdate + dt.timedelta(days=horizon)
-        # taille du chiffre adaptée à sa longueur (évite le débordement sur 6+ chiffres)
         formatted = f"{value:,.0f}".replace(",", " ")
         n_digits = sum(c.isdigit() for c in formatted)
-        font_size = 3.3 if n_digits <= 4 else (2.7 if n_digits <= 6 else 2.2)
+        font_size = 2.9 if n_digits <= 4 else (2.4 if n_digits <= 6 else 2.0)
         st.markdown(
             f"""
             <div class="nf-cartouche">
                 <div class="name">{name}</div>
-                <div class="meta">Validations prévues · {target_date.strftime('%d/%m/%Y')}</div>
-                <div class="nf-bignum" style="font-size:{font_size}rem">{formatted}<span class="unit"> valid.</span></div>
-                <div class="nf-horizon-tag">Horizon J+{horizon}</div>
+                <div class="meta">Validations prévues · {(rdate + dt.timedelta(days=horizon)).strftime('%d/%m/%Y')}</div>
+                <div class="nf-siel">
+                    <div class="lbl">Affichage prévision<span class="dotblink"></span></div>
+                    <div class="num" style="font-size:{font_size}rem">{formatted}<span class="unit">valid.</span></div>
+                </div>
+                <div class="nf-horizon-tag">HORIZON J+{horizon}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -350,7 +441,7 @@ with st.sidebar:
         vmax = max(res.values())
         bars = "".join(
             f'<div class="{"nf-bar active" if h == horizon else "nf-bar"}" '
-            f'style="height:{8 + 52 * (res[h] / vmax if vmax else 0):.0f}px"></div>'
+            f'style="height:{8 + 50 * (res[h] / vmax if vmax else 0):.0f}px"></div>'
             for h in range(1, HORIZON_MAX + 1)
         )
         lbls = "".join(
@@ -359,19 +450,33 @@ with st.sidebar:
         )
         st.markdown(f'<div class="nf-bars">{bars}</div><div class="nf-bars-lbl">{lbls}</div>',
                     unsafe_allow_html=True)
+
     elif isinstance(meta, str):
         st.markdown(f'<div class="nf-warn">{meta}</div>', unsafe_allow_html=True)
+
+    else:
+        st.markdown(
+            """
+            <div class="nf-ticket">
+                <div class="tplus">t+</div>
+                Choisissez une station sur la carte ou dans la liste
+                puis lancez la prédiction pour afficher la fréquentation prévue.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # --------------------------------------------------------------------------- #
 # Carte
 # --------------------------------------------------------------------------- #
 st.markdown(
-    '<div class="nf-legend">'
-    '<span><span class="dot" style="background:var(--low)"></span>affluence faible</span>'
-    '<span><span class="dot" style="background:var(--high)"></span>affluence forte</span>'
-    '<span><span class="dot" style="background:var(--ink)"></span>station sélectionnée</span>'
-    '<span>· lignes M1–M14 aux couleurs RATP</span>'
-    '</div>',
+    f"""
+    <div class="nf-planbar">
+        <div class="nf-eyebrow">Plan du réseau</div>
+        <div class="nf-bullets">{bullets_html()}</div>
+        <div class="nf-gradlegend">affluence&nbsp;faible <span class="ramp"></span> forte</div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
@@ -380,27 +485,24 @@ aff_min = stations["affluence_moyenne"].min()
 
 m = folium.Map(location=[48.8566, 2.3522], zoom_start=12, tiles="CartoDB positron")
 
-# 1) lignes de métro en fond
 for latlon, color in metro_lines:
     folium.PolyLine(latlon, color=color, weight=3, opacity=0.55).add_to(m)
 
-# 2) stations par-dessus
 for _, r in stations.iterrows():
     is_sel = (r["ID_LIEU"] == st.session_state.selected_id)
     rayon = 4 + 11 * (r["affluence_moyenne"] / aff_max if aff_max else 0)
-    couleur = "#15151F" if is_sel else color_for(r["affluence_moyenne"], aff_min, aff_max)
+    couleur = "#14141E" if is_sel else color_for(r["affluence_moyenne"], aff_min, aff_max)
     folium.CircleMarker(
         location=[r["lat"], r["lon"]],
         radius=rayon + (3 if is_sel else 0),
         tooltip=r["LIBELLE_ARRET"],
-        color="#FFFFFF" if is_sel else couleur,
+        color="#000000" if is_sel else couleur,
         weight=2.5 if is_sel else 1,
         fill=True, fill_color=couleur, fill_opacity=0.9 if is_sel else 0.62,
     ).add_to(m)
 
 out = st_folium(m, width=1100, height=620, returned_objects=["last_object_clicked"])
 
-# clic → sélection de la station la plus proche
 clicked = out.get("last_object_clicked")
 if clicked:
     d = (stations["lat"] - clicked["lat"]) ** 2 + (stations["lon"] - clicked["lng"]) ** 2
@@ -409,6 +511,4 @@ if clicked:
         st.session_state.selected_id = nearest
         st.session_state.result = None
         st.session_state.result_meta = None
-        # overlay affiché pendant le rechargement de la carte (moment le plus lent)
-        st.markdown(loading_overlay_html(), unsafe_allow_html=True)
         st.rerun()
