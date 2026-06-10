@@ -270,6 +270,8 @@ with st.sidebar:
         rid, rdate = meta
         name = stations.loc[stations["ID_LIEU"] == rid, "LIBELLE_ARRET"].iloc[0]
         value = res[horizon]
+        # date cible = date de référence + horizon (se rafraîchit avec le slider)
+        target_date = rdate + dt.timedelta(days=horizon)
         # taille du chiffre adaptée à sa longueur (évite le débordement sur 6+ chiffres)
         formatted = f"{value:,.0f}".replace(",", " ")
         n_digits = sum(c.isdigit() for c in formatted)
@@ -278,7 +280,7 @@ with st.sidebar:
             f"""
             <div class="nf-cartouche">
                 <div class="name">{name}</div>
-                <div class="meta">Validations prévues · {rdate.strftime('%d/%m/%Y')}</div>
+                <div class="meta">Validations prévues · {target_date.strftime('%d/%m/%Y')}</div>
                 <div class="nf-bignum" style="font-size:{font_size}rem">{formatted}<span class="unit"> valid.</span></div>
                 <div class="nf-horizon-tag">Horizon J+{horizon}</div>
             </div>
