@@ -27,7 +27,7 @@ API_URL = st.secrets["API_URL"]
 
 HORIZON_MAX = 7
 DATE_MIN = dt.date(2025, 6, 15)
-DATE_MAX = dt.date(2025, 12, 31)
+DATE_MAX = dt.date(2025, 12, 24)  # dernier jour de données disponible (features de service)
 DATE_DEFAULT = dt.date(2025, 9, 1)
 
 GEOJSON_PATH = "reseau_metro.geojson"
