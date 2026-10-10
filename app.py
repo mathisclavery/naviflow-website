@@ -483,7 +483,7 @@ st.markdown(
 aff_max = stations["affluence_moyenne"].max()
 aff_min = stations["affluence_moyenne"].min()
 
-m = folium.Map(location=[48.8566, 2.3522], zoom_start=12, tiles="CartoDB positron")
+m = folium.Map(location=[48.8566, 2.3522], zoom_start=12, tiles="OpenStreetMap")
 
 for latlon, color in metro_lines:
     folium.PolyLine(latlon, color=color, weight=3, opacity=0.55).add_to(m)
